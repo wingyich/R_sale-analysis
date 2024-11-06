@@ -1,0 +1,463 @@
+---
+title: "STAT0006 ICA 3"
+author: 'Student numbers: 22012694, 22022606, 22015692'
+subtitle: Group 36
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+## Part 1: Normal linear model
+### Introduction to the data
+
+```{r EDA.1, echo=FALSE}
+data1 <- read.csv("profits.csv")
+```
+
+In this exploratory data analysis, we will investigate the potential associations between car showroom `profits` and seven other variables. The dataset “profits.csv” contains **314** observations with **no missing data**, including eight distinct variables: `profits`, `staff`, `advert`, `new_release`, `weekend`, `temperature`, `rain`, and `years`. Before further exploration, notably, the number of observations for each covariate is not consistent, e.g., `new_release` has 288 Yes and 16 No observation, potentially leading to sample bias and poor generalization. 
+
+Our principal objective focuses on the `profit` variable, which represents the profit made by the showroom (from selling cars) on a single day. The measurements range from `r min(data1$profits)` to `r max(data1$profits)`. Our aim is to investigate the impact of other factors on the response variable `profit`. 
+
+Firstly, although `staff` is a numeric covariate, the observed values are limited to only five integers. The boxplot effectively illustrates the profits distribution across different staff levels, making it a valuable visualization for this analysis. The difference in the positions of each quartile is remarkable, the medians of profit of the corresponding number of staff are `r median(data1$profits[data1$staff==1])`, `r median(data1$profits[data1$staff==2])`, `r median(data1$profits[data1$staff==3])`, `r median(data1$profits[data1$staff==4])` and `r median(data1$profits[data1$staff==5])`. Notably, there is only one observation on `staff 5`. Except for the situation of `staff 5`, we observe a positive relationship between `staff` and `profit`. However, the quartile distribution pattern across the number of staff has a large distinction, making it insufficient to show how exactly the variable `staff` influences `profit` distribution. Further exploration of other factors is required.
+
+```{r EDA.2, echo=FALSE,fig.dim=c(4.7,3.3), fig.align='center'}
+### staff
+# Box Plot: Profit vs Staff
+boxplot(data1$profits ~ data1$staff, main = "Profit vs Staff", xlab = "Staff", ylab = "Profits (GBP)")
+points(x= 1, y = mean(data1$profits[data1$staff == 1]), col = "red", lwd = 2, lty = 2)
+points(x= 2, y = mean(data1$profits[data1$staff == 2]), col = "red", lwd = 2, lty = 2)
+points(x= 3, y = mean(data1$profits[data1$staff == 3]), col = "red", lwd = 2, lty = 2)
+points(x= 4, y = mean(data1$profits[data1$staff == 4]), col = "red", lwd = 2, lty = 2)
+points(x= 5, y = mean(data1$profits[data1$staff == 5]), col = "red", lwd = 2, lty = 2)
+```
+
+Secondly, use a similar technique to investigate the effect of `new release`, `rain` and `weekend`. The medians of yes and no `new_release` are `r median(data1$profits[data1$new_release=="Y"])` and `r median(data1$profits[data1$new_release=="N"])`, respectively, indicating that the cost of releasing new car model may be a factor which causes the reduction in profit. Yes and no `rain` show a similar relationship. The medians are `r median(data1$profits[data1$rain=="Y"])` and `r median(data1$profits[data1$rain=="N"])`, meaning that `rain` is a potential factor that would influence the `profits`. Under no rain condition, the profit is relatively greater than that under rainy condition. Besides, the association of `weekend` and `profit` appears to be negligible, indicating by the slight difference of the medians, `r median(data1$profits[data1$weekend=="1"])` and `r median(data1$profits[data1$weekend=="0"])`, and the similarity of the quartile distribution pattern under both conditions. To investigate the impact of weekend on the profit, it is necessary to compare the changes in other covariates. 
+
+```{r EDA.3, echo=FALSE, fig.height=2.8}
+### news_release, rain and weekend
+par(mfrow = c(1,3))
+boxplot(data1$profits ~ data1$new_release, main = "Profit vs New_release", xlab = "New Released", ylab = "Profits (GBP)")
+boxplot(data1$profits ~ data1$rain, main = "Profit vs Rain", xlab = "Rain", ylab = "Profits (GBP)")
+boxplot(data1$profits ~ data1$weekend, main = "Profit vs Weekend", xlab = "Weekend", ylab = "Profits (GBP)")
+```
+
+Thirdly, keep using boxplot to investigate the effect of `years` on the `profit`. Except for 2019, the quartile distribution pattern of 2020, 2021, 2022 and 2023 is similar, with medians `r median(data1$profits[data1$year=="2019"])`, `r median(data1$profits[data1$year=="2020"])`, `r median(data1$profits[data1$year=="2021"])`, `r median(data1$profits[data1$year=="2022"])` and `r median(data1$profits[data1$year=="2023"])`. In 2019, the distinctive quartile distribution may be due to less observational data. The interquartile range for the other four years remains consistent, with many observations at a relatively lower profit scale.
+
+```{r EDA.4, echo=FALSE, fig.dim=c(4.7,3.7), fig.align='center'}
+### years
+boxplot(data1$profits ~ data1$year, main = "Profit vs Year", xlab = "Year", ylab = "Profits(GBP)")
+```
+
+
+Using a scatterplot to investigate the effect of `advert` on `profits` reveals scattered data points with a wide distribution, indicating variability in `profit` for different advertising expenditures. There is a slightly positive linear relationship, with clusters at specific amounts, such as multiples of 25 (150 GBP is most frequent). This suggests common advertising budget amounts. Consequently, based on this scatterplot alone, there is no strong linear relationship between `advert` and `profits` generated. 
+
+```{r EDA.5, echo=FALSE,fig.dim=c(4.7,3.7), fig.align='center'}
+### advert
+plot(data1$advert, data1$profits, xlab = "advert (in GBP)", ylab = "profits (in GBP)", main = "advert vs. profits")
+fit <- lm(data1$profits ~ data1$advert, data=data1)
+abline(fit, col = "red")
+```
+
+The scatterplot for `temperature` and `profit` shows a positive relationship, where the largest profit occurs at `r data1$temperature[which.max(data1$profits)]` degree Celsius. Despite generally higher profits with increasing temperature, there is significant variability at nearly all temperature levels, suggests that other factors may influence the profit distribution.
+
+To address clustered points within the -2 to 5 degrees Celsius, a **logarithmic transformation is applied** to the `temperature` data. To ensure fully display, all `temperature` values need to be made positive. The smallest temperature value is -2.42, and adding 2.5 would cause it to deviate from other points after the logarithmic transformation. Hence, adding 3 is a suitable choice. **For the rest of this investigation, we will consistently add 3 to the temperature when applying the logarithmic transformation on temperature. **
+
+The transformation reveals a more distinctive pattern in the scatterplot compared to the non-transformed data. The transformation spreads out the data points, especially at the lower end, making previously unclear trends more apparent. There are a few data points with notably higher or lower profits at similar temperature levels, possibly indicating outliers that require further investigation to understand their nature.
+
+```{r EDA.6, echo=FALSE, fig.height=3.8}
+### temperature
+par(mfrow = c(1,2))
+plot(data1$temperature, data1$profits, xlab = "temperature (in degrees Celsius)", ylab = "profits(in GBP)", main = "temperature vs. profits")
+fit1 <- lm(data1$profits ~ data1$temperature, data=data1)
+abline(fit1, col = "red")
+plot(log(data1$temperature+3), data1$profits, xlab = "log(temperature+3) (in degrees Celsius)", ylab = "profits(in GBP)", main = "log(temperature+3) vs. profits")
+fit2 <- lm(data1$profits ~ log(data1$temperature+3), data=data1)
+abline(fit2, col = "red")
+```
+
+In summary, it is necessary to consider the inconsistent number of observations for each covariate as a limitation in data collection when drawing conclusions. To better understand how the seven factors we concern influence the profits, statistical analysis such as calculating the correlation coefficient or conducting regression analysis would be helpful. Additionally, considering potential interaction between covariates could provide a more comprehensive result. 
+
+
+### Model building
+**Brief explanation**
+
+In the model-building phase, we consider all covariates initially, employing stepwise regression, forward selection, and backward elimination to refine the model. To capture non-linearities and interactions, possible modifications like polynomials, interactions, or logarithms will be explored. The model will use F-tests to assess covariate reduction suitability, and multi-collinearity is checked. Assumption checking includes linearity, homoscedasticity, normality, and independence. Diagnostic checks for outliers, leverage points, and significant data that impact parameter estimates. Model performance evaluation and result interpretation, including R-squared, will conclude the process.
+
+**Transformation**
+
+In the initial model-building step, considering covariate transformations, our EDA reveals no distinctive pattern for `profit` with most covariates, **except for** `temperature`. We apply a logarithmic transformation to spread out gathering dots between 0 to 5 degrees Celsius. However, we could not conclusively determine if the logarithm improved linearity. As a next step, we will build two models — one with `log(temperature+3)` and another with just `temperature` — and compare their performance.
+
+**Interaction**
+
+Considering interactions between categorical covariates (`weekend`, `new_release`, `rain`) and numeric covariates, we examine profits against other covariates, including `log(temperature+3)`. Plots for categories like weekend_1 vs. weekend_0, rainYes vs. rainNo, or new_releaseYes vs. new_releaseNo are analyzed. No distinct patterns between Yes/No or 1/0 were observed, suggesting no significant interaction. For instance, the interaction plot between `temperature` and `rain` shows no substantial differences between rainYes and rainNo patterns. Consequently, we choose to exclude interactions from the model.
+
+```{r interaction, echo=FALSE, fig.dim=c(5,4), fig.align='center'}
+plot(data1[data1[,7]=="Y",]$temperature,data1[data1[,7]=="Y",]$profits, xlab = "temperature", ylab = "profits",pch = 2, col = "red", main = "Profits vs temperature", cex = 0.8)
+points(data1[data1[,7]=="N",]$temperature,data1[data1[,7]=="N",]$profits, pch = 2, cex = 0.8)
+legend("topleft", legend = c("rainYes", "rainNo"), col = c("red","black"), pch = c(2,2))
+```
+
+**Multi-colinearity**
+
+```{r multicolinearity, echo=FALSE, fig.dim=c(5.5,3.8), fig.align='center'}
+data11<-data1
+data11$new_release <- c(N=0,Y=1)[data11$new_release] 
+data11$rain <- c(N=0,Y=1)[data11$rain] 
+pairs(~staff+advert+temperature+rain+year+weekend+new_release+year, data = data11, cex = 0.7,mar = c(1,1,1,1))
+```
+
+Also, by the matrix plot we can notice that the independent variables are not correlated with each other, thus the model demonstrates no multi-collinearity.
+
+### **WITHOUT TRANSFORMATION**
+
+**methods of model building**
+
+```{r backward elimination, echo=FALSE, results='hide'}
+summary(lm(profits~., data = data1))
+summary(lm(profits~.-year-weekend, data = data1))
+summary(lm(profits~.-year-weekend-rain, data = data1))
+```
+
+We first construct the full model with all the covariates in data. profits~. Observed that `year` has the largest
+p-value 0.834 so remove it. Then in the second model profits ~ . - year, `weekend` has the largest
+p-value 0.8198. Repeat the process, we remove `rain` with p-value 0.2233. After removing three covariates, all the
+p-values are less than 0.05 (alpha we chosen here). Thus by backward elimination, we reduce the covariates
+and get the model profits~.-year-weekend-rain. 
+
+```{r forward selection, results='hide',echo=FALSE}
+summary(lm(profits~staff, data = data1))
+summary(lm(profits~advert, data = data1))
+summary(lm(profits~new_release, data = data1))
+summary(lm(profits~weekend, data = data1))
+summary(lm(profits~temperature, data = data1))
+summary(lm(profits~rain, data = data1))
+summary(lm(profits~year, data = data1))
+summary(lm(profits~temperature+staff, data = data1))
+summary(lm(profits~temperature+advert, data = data1))
+summary(lm(profits~temperature+new_release, data = data1))
+summary(lm(profits~temperature+weekend, data = data1))
+summary(lm(profits~temperature+rain, data = data1))
+summary(lm(profits~temperature+year, data = data1))
+summary(lm(profits~temperature+staff+advert, data = data1))
+summary(lm(profits~temperature+staff+new_release, data = data1))
+summary(lm(profits~temperature+staff+weekend, data = data1))
+summary(lm(profits~temperature+staff+rain, data = data1))
+summary(lm(profits~temperature+staff+year, data = data1))
+summary(lm(profits~temperature+staff+advert+new_release, data = data1))
+summary(lm(profits~temperature+staff+advert+new_release+year, data = data1))
+summary(lm(profits~temperature+staff+advert+new_release+rain, data = data1))
+summary(lm(profits~temperature+staff+advert+new_release+weekend, data = data1))
+```
+
+Now we use forward selection. Construct 7 models for each of the covariates in data1 individually, we find the `temperature` has the lowest p-value(<2e-16) So we added `temperature` in the model. Then we construct 6 models of `temperature`+ each on other covariates and now `staff` has the lowest p-value(1.19e-06) so added to model. Repeat the process then we will add `advert` with p-value 6.78e-05 and `new_release` with p-value 0.0317. After adding these four covariates we do not have p-value less than 0.05. Thus by forward selection, we finally get the model **profits~temperature+advert+staff+new_release**.
+
+```{r stepwise, echo=FALSE}
+m0 <- lm(profits~1, data = data1)
+m1 <- lm(profits~., data = data1)
+m2 <- step(m0, scope = list(upper = m1, lower = m0), direction = "both")
+```
+
+By using the stepwise regression, we have checked that we get the same model with previous methods.
+
+**F test**
+
+```{r F-test,echo=FALSE}
+anova(m1,m2,test="F")
+```
+
+The p-value for the F-statistic of the model with the full set of covariates is 0.6652, which is large. Thus we prefer the reduced simpler model. This result verifies our covariates selection.
+
+
+### **WITH TRANSFORMATION**
+
+We do the same process as we did in building previous model. But this time we put `log(temperature+3)` instead of `temperature`.
+
+**methods of model building**
+
+```{r, echo=FALSE, results='hide'}
+m12 <- lm(profits~.-temperature+log(temperature+3), data=data1)
+m22 <- step(m0, scope = list(upper = m12, lower = m0), direction = "both")
+m32 <- step(m0, scope = list(upper = m12, lower = m0), direction = "forward")
+m42 <- step(m12, scope = list(upper = m12, lower = m0), direction = "backward")
+```
+
+Bythe three methods again, we find the new-release is not included in the model and the model reduced to **Profit~log(temperature+3)+advert+staff**.
+
+**F test**
+
+```{r,echo=FALSE}
+anova(m12,m22,test="F")
+```
+
+Same as previous model, the p-values is 0.57, indicating that this model is better than full model.
+
+Now, we have two model which is **profit~temperature+advert+staff+new_release** and **profit~ log(temperature+3)+advert+staff**. And we will check the model fit then and compare them to find the best fit model.
+
+
+
+### Model checking for final chosen model
+
+**Assumption checking model without transformation**
+
+The assumptions for model include linearity, homoscedasticity and normality.
+
+1. linearity:
+The plots below shows the standardized residuals vs each covariate in model. We can observe that they are all evenly distributed around the horizon line and no obvious pattern, thereby no violence to linearity assumption.
+
+```{r plot for sd resid vs covariate, echo=FALSE, fig.height=4.3}
+resid1 <- residuals(m2)
+res <- rstandard(m2)
+par(mfrow = c(2,2), mar = c(5,5,5,5), mgp = c(1.75,0.75,0), mai = c(0.6,0.6,0.2,0.4))
+plot(data1$temperature,res, ylab = "standardized reiduals", xlab = "temperature", cex=0.7)
+abline(0,0,col="red")
+plot(data1$advert,res, ylab = "standardized reiduals", xlab = "advert",cex=0.7)
+abline(0,0,col="red")
+plot(data1$staff,res, ylab = "standardized reiduals", xlab = "staff",cex=0.7)
+abline(0,0,col="red")
+plot(data11$new_release,res, ylab = "standardized reiduals", xlab = "new_release",cex=0.7)
+abline(0,0,col="red")
+```
+
+2. Homoscedasticity:
+We plot standardized residual vs fitted value and also QQ plot. We can see the standardized residuals distributed with constant variance along horizon line, despite that a few points spread out at larger fitted value, satisfying homoscedasticity. 
+
+```{r lot for homocsedasity,echo=FALSE, fig.dim=c(5,3.6), fig.align='center'}
+fv <- fitted(m2)
+plot(fv, res, main="Standardized residuals vs Fitted values",xlab="Fitted Value",ylab="Standardized residuals", cex=0.7)
+abline(0,0,col="red")
+```
+
+3. Normality: 
+The QQ plot shows that the assumption of normality is adequate.
+
+```{r qq plot, echo=FALSE, fig.dim=c(5,4), fig.align='center'}
+plot(m2, which = 2, xlab = "Quantile of N(0,1)",cex=0.7)
+```
+
+Additionally, the plot of observed vs fitted values can show the model fit as well. For this model, the points shows an upward trend and distributed evenly around y=x, which support the fitness of model.
+
+```{r ob vs fv, echo=FALSE, fig.dim=c(4.5,3), fig.align='center'}
+plot(fv, data1$profits,main="Observed vs Fitted values",xlab="Fitted Value",ylab="Observed Value", cex=0.7)
+abline(0,1,col="red")
+```
+
+**Influential points**
+
+#Outliers
+
+Upon examining the Standardized Residuals vs Fitted Values plot, we observe approximately five points lying outside the interval of -2 to +2. However, we consider this deviation as not statistically significant due to its low proportion relative to the sample size as well as magnitude. Therefore, we choose to temporarily ignore their influence on this analysis. 
+
+#Leverage points
+
+From the plot of leverage point, we can observe that there are lots of hat values larger than 2p/n indicated by red line, which deserve a closer investigation, indicating that the model might not be appropriate.
+
+```{r leaverage,echo=FALSE, fig.dim=c(6,3.3), fig.align='center'}
+hats <- hatvalues(m2)
+plot(hats, type = "h", ylab = "Leverage", xlab = "Observation")
+abline(a = sum(hats)/314, b = 0, lty = 3, col = "blue")
+abline(a = sum(hats)*2/314, b = 0, lty = 3, col = "red")
+```
+
+
+**R-squared**
+
+```{r R-squared, echo=FALSE}
+summary(m2)
+```
+
+In assessing the model summary, an R-squared of 0.5 indicates that 50% of the variability in the outcome variable is explained by the model. This implies a significant portion of variability remains unaccounted for by the chosen set of independent variables, suggesting that our model lacks sufficient strength to convincingly demonstrate a good fit. Further investigation of the R-squared in the full model, incorporating all covariates, reveals a similar value of approximately 0.5. As the low R-squared is not attributed to the reduction of covariates in the previous step, we accept this value. The limited explanatory power could be attributed to the constraints of the available data and the types of covariates provided in the original dataset.
+
+**Comparing the model with log(temperature+3) model**
+
+For the second model, there is no obvious pattern observed. However, we can see that the y-axis has a larger range on the positive side than on the negative side, which might indicate a slightly uneven distribution.
+
+```{r plot log tem,echo=FALSE, fig.height=3}
+res2 <- rstandard(m22)
+par(mfrow = c(1,2))
+plot(log(data1$temperature+3),res2, ylab = "standardised reiduals", xlab = "log(temperature+3)",cex=0.7 )
+abline(0,0,col="red")
+plot(data1$advert,res2, ylab = "standardised reiduals", xlab = "advert",cex=0.7)
+abline(0,0,col="red")
+```
+
+```{r fig.dim=c(3.2,3), echo=FALSE, fig.align='left'}
+plot(data1$staff,res2, ylab = "standardised reiduals", xlab = "staff",cex=0.7)
+abline(0,0,col="red")
+```
+
+
+In the Standardized Residuals vs. Fitted Values plot, a curved relationship can be observed, and the points spread out more at two tails. Thus, we can conclude that there is a violation of homoscedasticity. Additionally, the normal QQ plot indicates that the model generally supports the assumption of normality, except for a slight upward curve at both ends.
+
+```{r plot for homocsedasity and qq2, echo=FALSE, fig.height=4}
+par(mfrow = c(1,2))
+fv2 <- fitted(m22)
+plot(fv2, res2, main="Standardized residuals vs Fitted values",xlab="Fitted Value",ylab="Standardized residuals",cex=0.8)
+abline(0,0,col="red")
+plot(m22, which = 2, xlab ="Quantile of N(0,1)",cex=0.8)
+```
+
+The observed vs fitted plot also shows an upward linear relationship between them for this model, while it is not as linear as the previous model.
+
+```{r ob vs fv2, echo=FALSE,fig.dim=c(4.5,3.5), fig.align='center'}
+plot(fv2, data1$profits,main="Observed vs Fitted values",xlab="Fitted Value",ylab="Observed Value")
+abline(0,1,col="red")
+```
+
+#Outliers
+
+Again, although there are few points lie outside of -2 to +2 at Standardized residuals vs Fitted values plot, we ignore the outliers due to its amount and magnitude.
+
+#Leverage points
+
+Same as previous model, there are still many hat values larger than 2p/n indicated by red line, which means that the model may not be appropriate.
+
+```{r leaverage2,echo=FALSE,fig.dim=c(6,3.7), fig.align='center'}
+hats2 <- hatvalues(m22)
+plot(hats2, type = "h", ylab = "Leverage", xlab = "Observation")
+abline(a = sum(hats2)/314, b = 0, lty = 3, col = "blue")
+abline(a = sum(hats2)*2/314, b = 0, lty = 3, col = "red")
+```
+
+
+```{r R-squared2, echo=FALSE}
+summary(m22)
+```
+
+The R-squared is around 0.47 which is lower than previous one.
+
+From analysis above, we have lower R-squared and homoscedasticity in log(temperature+3) model, hence We prefer our previous model.
+
+**Final model**
+
+From the process of model building and fitting, we now confirm our final model is **profits~temperature+ staff+advert+new_release**.
+
+### Conclusion
+
+To summarize, four main factors significantly influencing profits are `temperature`, `staff`, `advert`, and `new_release`. In our final model, `temperature`, `staff`, and `advert` show positive relationships with profits. A one-unit increase in `temperature` and `staff` corresponds to profit increases of **332.506** and **453.338**, respectively, greater than the effect of advert, **4.385**, while holding all other conditions constant. This suggests that customers are more inclined to purchase cars in comfortable temperatures, with better service or attractive advertisements.
+
+Conversely, the variable `new_releaseYes` has a negative impact on profits. Holding other conditions constant, a "yes" in `new_release` associates with a profit decrease of **598.069**. This implies that if new car models were released in the recent days, profits would be lower, as consumers might opt for the new models. Notably, `temperature`, `advert`, and `staff` demonstrate higher statistical significance in the model.
+
+
+### Discussion of limitations 
+
+
+The EDA and model-building process reveal four limitations, with three related to the dataset and one related to the model.
+
+1. Limited Range and Discreteness of Covariates:
+Discrete variables with small ranges, such as `staff`, `year`, and `advert`, pose challenges in capturing subtle data patterns. Limited distinct values (5, 5, and 11, respectively) may hinder effective visualization.
+
+2. Insufficient Covariate Information:
+Low R-squared values in all models tried before may be due to the absence of crucial variables, like cost and selling price. These variables are fundamental factors influencing business profits, thus including these factors could significantly enhance model accuracy and explanatory power.
+
+3. Uneven Distribution of Data Across Covariates:
+Data imbalance across different covariate values, e.g., concentration around 0-5 Celsius in temperature and sparse data for `year 2019` and `staff 5`, may bias models. This should be explicitly addressed to avoid skewed results.
+
+4. Leverage Points:
+A few leverage points and outliers may strongly impact model performance and interpretation or skew the results. Robust regression techniques or alternative modeling approaches less susceptible to influential data points could enhance model robustness and generalizability.
+
+
+
+## Part 2: Generalised linear model OR Generalised additive model
+
+### Report on modelling number of car sales
+
+#### Choosing covariate
+
+Given only one covariate contained in the model, numeric covariate is preferable for modeling numeric `sales` data. Categorical covariates with only two situations (Y/N or 0/1) provide limited two points, which is not helpful in predicting `sales`. Therefore, we would better choose a numeric covariate.
+
+We consider to choose one of the following numeric covariates, `staff`, `advert`, `temperature` and `year`. Plotting numeric covariates against `sales` to find the plot with some distinct trend. The bottom-left plot have a relatively linear trend. `Staff` and `year` have only 5 values each, limiting their predictivity. `advert` is not continuous data and lacks a systematic trend with `sales`. `temperature` would be the preferable covariate as it is relatively continuous over a range and appears to have a positive relationship with `profit`. However, the points are clustered. We try to apply logarithmic transformation on **temperature** to spread them out. 
+
+```{r task2.1, echo=FALSE, fig.height=4}
+data2 <- read.csv("sales.csv")
+par(mfrow = c(2,2), mar = c(5,5,5,5), mgp = c(1.75,0.75,0), mai = c(0.6,0.6,0.2,0.4))
+plot(data2$staff, data2$sales, ylim = range(data2$sales), xlab = "Staff", ylab = "Sales")
+plot(data2$advert, data2$sales, ylim = range(data2$sales), ylab = "Sales", xlab = "Advert (in GBP)")
+plot(data2$temperature, data2$sales, ylim = range(data2$sales), ylab = "Sales", xlab = "Temperature (in degrees Celsius)") 
+plot(data2$year, data2$sales, ylim = range(data2$sales), ylab = "Sales", xlab = "Year")
+```
+
+```{r task2.1.1, echo=FALSE, fig.dim=c(5,3), fig.align='center'}
+par(mfrow = c(1,1),mar = c(3,3,2,3), mgp = c(1.5,0.5,0)) 
+plot(log(data2$temperature+3), data2$sales, ylim = range(data2$sales), ylab = "Sales", xlab = "log(Temperature+3) (in degrees Celsius)", main = " After transformation") 
+```
+
+The points spread out slightly and there also seems to be an exponential relationship between `log(temperature+3)` and `sales`. We would prefer this than the original one since we are going to carry out Poisson regression, i.e. an exponential trend will be required. The details will be discussed in the upcoming model building section. 
+
+
+#### Model building
+
+Now apply a generalised linear regression model for `sales`. Since we have count data here, it is common to apply Poisson regression to make sure the mean being positive. Therefore, our model will have `log(temperature+3)` as the only covariate and `sale` as the response, carrying out Poisson regression using **log-link** function. The summary of model below shows that the p-values for all coefficients are very tiny, indicating that the coefficients are significant. 
+
+```{r task2.2, echo=FALSE}
+
+model0 <- glm(sales ~1, family = poisson(), data = data2)
+#### Temperature
+### GLM
+model1 <- glm(sales ~ log(temperature+3), family = poisson(), data = data2)
+summary(model1)
+```
+
+Then compare our model with the intercept-only model using a chi-squared test, since the dispersion parameter is known for poisson family. The very small p-value indicates that we would **prefer** our model with **log(temperature+3)** being the covariate.
+
+```{r task2.3, echo=FALSE}
+anova(model0, model1, test = "Chisq")
+```
+
+#### Check Model Assumptions
+
+1. Linearity (in linear predictor): Top-left plot of deviance residuals against log(temperature+3) shows no systematic patterns, validating linearity.
+
+2. Homoscedasticity (constant variance): Top-right plot of deviance residuals against fitted values shows a random scatter around zero, satisfying homoscedasticity.
+
+3. Normality (of deviance residuals): Bottom-left QQ-plot indicates adequate normality assumption.
+
+4. No need to check serial correlation as sales data is not ordered. 
+
+
+```{r task2.4, echo=FALSE}
+## Check assumptions
+dev1 <- residuals(model1, type = "deviance")
+fit1 <- fitted(model1)
+par(mfrow = c(2,2))
+# linearity
+plot(log(data2$temperature+3), dev1, main = "Check linearity", xlab = "log(Temperature+3) (in degrees Celsius)", ylab = "Deviance Residuals")
+abline(h=0)
+# Constant variance
+plot(log(fit1), dev1, main = " Check Constant Variance", xlab = "Fitted linear predictor values", ylab = "Deviance Residuals")
+abline(h=0)
+# normality
+qqnorm(dev1, main = "Check Normality", xlab = "Quantile of N(0,1)", ylab = "Quantiles of Deviance Residuals")
+qqline(dev1)
+
+```
+
+#### Model Fit
+
+Assumptions of our model are adequate. We plot **the fitted value** of our model against the corresponding observed `sales`, and check whether there is some agreement. The points are scattered around the red line **y=x**, indicating that there is some reasonable agreement here and our model is great performing.
+
+
+```{r task2.5, echo=FALSE, fig.dim=c(4.5,2.7), fig.align='center'}
+par(mfrow = c(1,1),mar = c(3,3,2,3), mgp = c(1.5,0.5,0))
+plot(fitted(model1), data2$sales, xlab = "Fitted values", ylab = "Observed values", main = "Assessment of Fit", cex.main = 1)
+abline(a=0,b=1, col = "red")
+legend(1,37, "y=x", col = "red", cex = 0.75, lty = 1, ncol = 1)
+```
+
+#### Comments
+
+The scatterplot of `temperature` and `sales` shows a positive relationship except for some outliers, suggesting that as the showroom temperature rises, sales tend to increase. The management team can experiment by raising showroom temperature, observing sales changes while holding other covariates constant. Once establishing that a comfortable temperature positively influences consumer willingness to purchase cars, it becomes crucial to determine the range of comfortable temperatures. This information is instrumental in deciding when the staff should turn off the heater to reduce costs.
+
+Although our model is greatly fitted, using `temperature` as a single covariate to predict the `sales` is not rigorous. Various factors can influence car sales, such as economic conditions, consumer preferences, and marketing efforts. Ignoring these factors might lead to an incomplete and less accurate predictive model, introducing many **limitations**. 
+
+For instance, car sales are also affected by factors like holidays, promotions, and new model releases, beyond what temperature alone can capture. Besides, **consumer decision-making** in purchasing a car involves complex psychological, social, and economic factors. In addition, it increases the **risk of underfitting**, affecting performance with new or unseen data. A diverse set of covariates creates a robust model for generalization. **Marketing opportunities** might be overlooked. Targeted campaigns with varied covariates align better with diverse customer preferences. Also, a model with various covariates provides a comprehensive understanding for informed **strategic decision-making** beyond simple temperature-driven correlations.
+
+In summary, while `temperature` may play a role in influencing car `sales`, an exclusive reliance on it as the sole covariate overlooks the complexity of the car market. A more comprehensive approach, considering a broader set of factors, is recommended for building a robust and accurate predictive model for car sales.
+\
+\
+
+**Total word count:** 2989.
